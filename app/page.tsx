@@ -1,12 +1,19 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import SlideUploader from '@/components/SlideUploader';
 import SlideCard from '@/components/SlideCard';
 import PainPointSelector from '@/components/PainPointSelector';
 import ToneSelector from '@/components/ToneSelector';
 import VariationCount from '@/components/VariationCount';
 import PromptOutput from '@/components/PromptOutput';
+import UserMenu from '@/components/UserMenu';
+import AuthModal from '@/components/AuthModal';
+import LoadProjectButton from '@/components/LoadProjectButton';
+import SaveProjectButton from '@/components/SaveProjectButton';
+import SavedPromptsList from '@/components/SavedPromptsList';
+import { savePrompt } from '@/lib/database';
+import { SavedProject } from '@/lib/storage-types';
 import {
   WorkflowState,
   SlideData,
@@ -41,6 +48,9 @@ const initialState: WorkflowState = {
 
 export default function Home() {
   const [state, setState] = useState<WorkflowState>(initialState);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showPromptsModal, setShowPromptsModal] = useState(false);
+  const [currentProjectName, setCurrentProjectName] = useState('');
 
   // Step 1: Extract slides from images
   const handleExtract = useCallback(async () => {
@@ -214,19 +224,60 @@ export default function Home() {
     setState((prev) => ({ ...prev, step: 2, compiledPrompt: null }));
   }, []);
 
+  const handleLoadProject = useCallback((project: SavedProject) => {
+    setCurrentProjectName(project.name);
+    setState((prev) => ({
+      ...prev,
+      step: 2,
+      images: project.images,
+      slides: project.slides,
+      analysis: project.analysis,
+      brand: project.brand,
+      painPoint: project.pain_point,
+      tone: project.tone,
+      variationCount: project.variation_count,
+    }));
+  }, []);
+
+  // Auto-save prompt when compiled
+  useEffect(() => {
+    if (state.compiledPrompt && state.step === 3) {
+      const projectName = currentProjectName || `Prompt ${new Date().toLocaleDateString()}`;
+      savePrompt({
+        project_id: null,
+        project_name: projectName,
+        prompt_text: state.compiledPrompt,
+      }).catch(err => console.error('Failed to auto-save prompt:', err));
+    }
+  }, [state.compiledPrompt, state.step, currentProjectName]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold text-gray-900">
-            TikTok Content Variation Workflow
-          </h1>
-          <p className="text-gray-600 mt-1">
-            Transform your TikTok slideshow content into production-ready copy variations
-          </p>
+        <div className="max-w-5xl mx-auto px-4 py-6 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              TikTok Content Variation Workflow
+            </h1>
+            <p className="text-gray-600 mt-1">
+              Transform your TikTok slideshow content into production-ready copy variations
+            </p>
+          </div>
+          <UserMenu onAuthClick={() => setShowAuthModal(true)} />
         </div>
       </header>
+
+      {/* Modals */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => setShowAuthModal(false)}
+      />
+      <SavedPromptsList
+        isOpen={showPromptsModal}
+        onClose={() => setShowPromptsModal(false)}
+      />
 
       {/* Progress Steps */}
       <div className="bg-white border-b border-gray-200">
@@ -301,7 +352,8 @@ export default function Home() {
               />
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex justify-between">
+              <LoadProjectButton onLoad={handleLoadProject} />
               <button
                 onClick={handleExtract}
                 disabled={state.images.length === 0 || state.isLoading}
@@ -350,9 +402,27 @@ export default function Home() {
           <div className="space-y-6">
             {/* Slide Cards */}
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Step 2: Configure Your Variations
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Step 2: Configure Your Variations
+                  </h2>
+                </div>
+                {state.analysis && (
+                  <SaveProjectButton
+                    data={{
+                      images: state.images,
+                      slides: state.slides,
+                      analysis: state.analysis,
+                      brand: state.brand,
+                      pain_point: state.painPoint,
+                      tone: state.tone,
+                      variation_count: state.variationCount,
+                    }}
+                    onSaved={() => {}}
+                  />
+                )}
+              </div>
               <p className="text-gray-600">
                 Choose which slides to keep fixed and which to vary. Slides marked as high risk
                 are defaulted to &quot;Keep Fixed&quot;.
@@ -481,6 +551,15 @@ export default function Home() {
                   content variations.
                 </p>
               </div>
+              <button
+                onClick={() => setShowPromptsModal(true)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                View Saved Prompts
+              </button>
             </div>
 
             <PromptOutput prompt={state.compiledPrompt} />
