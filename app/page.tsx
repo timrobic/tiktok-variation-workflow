@@ -12,6 +12,7 @@ import AuthModal from '@/components/AuthModal';
 import LoadProjectButton from '@/components/LoadProjectButton';
 import SaveProjectButton from '@/components/SaveProjectButton';
 import SavedPromptsList from '@/components/SavedPromptsList';
+import CodeGate from '@/components/CodeGate';
 import { savePrompt } from '@/lib/database';
 import { SavedProject } from '@/lib/storage-types';
 import {
@@ -252,7 +253,8 @@ export default function Home() {
   }, [state.compiledPrompt, state.step, currentProjectName]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <CodeGate>
+      <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-4 py-6 flex justify-between items-center">
@@ -592,5 +594,6 @@ export default function Home() {
         </div>
       </footer>
     </div>
+    </CodeGate>
   );
 }
