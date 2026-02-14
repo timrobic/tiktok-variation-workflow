@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import imageCompression from 'browser-image-compression';
 
 interface SlideUploaderProps {
   images: string[];
@@ -10,6 +11,24 @@ interface SlideUploaderProps {
 
 export default function SlideUploader({ images, onImagesChange, disabled }: SlideUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+
+  const compressImage = async (file: File): Promise<File> => {
+    const options = {
+      maxSizeMB: 0.5, // Max 500KB per image
+      maxWidthOrHeight: 1200, // Max dimension
+      useWebWorker: true,
+      initialQuality: 0.85, // 85% quality
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      return compressedFile;
+    } catch (error) {
+      console.error('Compression error:', error);
+      return file; // Return original if compression fails
+    }
+  };
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files).filter(file => 
@@ -18,14 +37,22 @@ export default function SlideUploader({ images, onImagesChange, disabled }: Slid
 
     if (fileArray.length === 0) return;
 
+    setIsCompressing(true);
     const newImages: string[] = [];
     
-    for (const file of fileArray) {
-      const base64 = await fileToBase64(file);
-      newImages.push(base64);
-    }
+    try {
+      for (const file of fileArray) {
+        // Compress the image first
+        const compressedFile = await compressImage(file);
+        // Then convert to base64
+        const base64 = await fileToBase64(compressedFile);
+        newImages.push(base64);
+      }
 
-    onImagesChange([...images, ...newImages].slice(0, 10)); // Max 10 images
+      onImagesChange([...images, ...newImages].slice(0, 10)); // Max 10 images
+    } finally {
+      setIsCompressing(false);
+    }
   }, [images, onImagesChange]);
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -68,6 +95,17 @@ export default function SlideUploader({ images, onImagesChange, disabled }: Slid
 
   return (
     <div className="space-y-4">
+      {/* Compression Loading Indicator */}
+      {isCompressing && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3">
+          <svg className="animate-spin h-5 w-5 text-blue-600" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="text-blue-700 font-medium">Compressing images...</span>
+        </div>
+      )}
+
       {/* Drop Zone */}
       <div
         onDrop={handleDrop}
@@ -76,7 +114,7 @@ export default function SlideUploader({ images, onImagesChange, disabled }: Slid
         className={`
           border-2 border-dashed rounded-lg p-8 text-center transition-colors
           ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
-          ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+          ${disabled || isCompressing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
       >
         <input
@@ -84,13 +122,13 @@ export default function SlideUploader({ images, onImagesChange, disabled }: Slid
           accept="image/*"
           multiple
           onChange={handleFileInput}
-          disabled={disabled}
+          disabled={disabled || isCompressing}
           className="hidden"
           id="slide-upload"
         />
         <label 
           htmlFor="slide-upload" 
-          className={`block ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+          className={`block ${disabled || isCompressing ? 'cursor-not-allowed' : 'cursor-pointer'}`}
         >
           <div className="space-y-2">
             <svg
