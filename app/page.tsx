@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import SlideUploader from '@/components/SlideUploader';
 import SlideCard from '@/components/SlideCard';
 import PainPointSelector from '@/components/PainPointSelector';
@@ -240,17 +240,14 @@ export default function Home() {
     }));
   }, []);
 
-  // Auto-save prompt when compiled
-  useEffect(() => {
-    if (state.compiledPrompt && state.step === 3) {
-      const projectName = currentProjectName || `Prompt ${new Date().toLocaleDateString()}`;
-      savePrompt({
-        project_id: null,
-        project_name: projectName,
-        prompt_text: state.compiledPrompt,
-      }).catch(err => console.error('Failed to auto-save prompt:', err));
-    }
-  }, [state.compiledPrompt, state.step, currentProjectName]);
+  const handleSavePrompt = useCallback(async (promptText: string) => {
+    const projectName = currentProjectName || `Prompt ${new Date().toLocaleDateString()}`;
+    await savePrompt({
+      project_id: null,
+      project_name: projectName,
+      prompt_text: promptText,
+    });
+  }, [currentProjectName]);
 
   return (
     <CodeGate>
@@ -564,7 +561,10 @@ export default function Home() {
               </button>
             </div>
 
-            <PromptOutput prompt={state.compiledPrompt} />
+            <PromptOutput
+              prompt={state.compiledPrompt}
+              onSave={handleSavePrompt}
+            />
 
             {/* Actions */}
             <div className="flex justify-between">
